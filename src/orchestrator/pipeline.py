@@ -89,14 +89,27 @@ def run(no_wake: bool = False) -> None:
             print(f"\nYou said: {text}")
             log.info("[%s] STT took %.2fs", _timestamp(), t_stt - t_heard)
 
-            # ── Step 3: Text → LLM response ───────────────────────────────────
+            # ── Step 3a: Check for project management intent ──────────────────
+            project_response = None
             try:
-                from src.llm import ollama_client
-                response = ollama_client.complete(text, conversation_history)
+                from src.projects.intent_parser import parse_intent, dispatch
+                intent = parse_intent(text)
+                log.info("Detected intent: %s", intent)
+                if intent.get("intent") != "unknown":
+                    project_response = dispatch(intent)
             except Exception as exc:
-                log.error("LLM error: %s", exc)
-                # Don't update history on error
-                continue
+                log.warning("Intent parsing skipped: %s", exc)
+
+            if project_response is not None:
+                response = project_response
+            else:
+                # ── Step 3b: General LLM response ─────────────────────────────
+                try:
+                    from src.llm import ollama_client
+                    response = ollama_client.complete(text, conversation_history)
+                except Exception as exc:
+                    log.error("LLM error: %s", exc)
+                    continue
 
             t_llm = time.perf_counter()
             print(f"PPT: {response}")

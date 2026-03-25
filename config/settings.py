@@ -26,7 +26,7 @@ PIPER_MODEL_DIR = "./models/piper"
 
 # ── Telegram Bot ──────────────────────────────────────────────────────────
 TELEGRAM_BOT_TOKEN = "8618744531:AAEbP7H0eRLqCC2hLPPxajjnsFFQfjKNvU0"
-TELEGRAM_CHAT_ID = None  # Run scripts/setup_telegram.py to set this automatically
+TELEGRAM_CHAT_ID = "5330253249"  # Run scripts/setup_telegram.py to set this automatically
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 LOG_LEVEL = "INFO"           # DEBUG | INFO | WARNING | ERROR
