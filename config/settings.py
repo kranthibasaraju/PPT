@@ -26,3 +26,7 @@ PIPER_MODEL_DIR = "./models/piper"
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 LOG_LEVEL = "INFO"           # DEBUG | INFO | WARNING | ERROR
+
+# ── Telegram ──────────────────────────────────────────────────────────────────
+TELEGRAM_BOT_TOKEN = "8618744531:AAEbP7H0eRLqCC2hLPPxajjnsFFQfjKNvU0"
+TELEGRAM_CHAT_ID = None  # Set after running scripts/setup_telegram.py
