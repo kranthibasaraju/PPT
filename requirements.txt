@@ -1,0 +1,8 @@
+openwakeword>=0.6.0
+faster-whisper>=1.0.0
+sounddevice>=0.4.6
+numpy>=1.24.0
+requests>=2.31.0
+scipy>=1.11.0
+# pyaudio>=0.2.13  # requires portaudio system headers; install manually after: brew install portaudio && pip install pyaudio
+apscheduler>=3.10.0
