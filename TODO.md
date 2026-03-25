@@ -1,6 +1,17 @@
 # PPT — Todo & Task Tracker
 
-_Last updated: 2026-03-23 (v2 — added dashboard, Slack, Git, Calendar phases)_
+_Last updated: 2026-03-24 (v3 — Telegram, project planner, web UI added)_
+
+---
+
+## 🌐 Web UI — Project Planner
+
+- [ ] **Use AI skill (stitch/image-gen) to redesign the web UI** — generate a proper visual design for the project planner dashboard, replace the hand-coded HTML with a polished output
+- [ ] Make web server auto-start on Mac Mini boot (launchd plist)
+- [ ] Add project status toggle (active → done) from the UI
+- [ ] Add task due dates to the UI
+- [ ] Show voice command history in the UI
+- [ ] Send Telegram notification when a task is tapped done on mobile
 
 ---
 
