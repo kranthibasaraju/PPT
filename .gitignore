@@ -11,3 +11,4 @@ bin/
 .env
 *.log
 .pytest_cache/
+.claude/
