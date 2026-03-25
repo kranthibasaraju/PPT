@@ -131,6 +131,11 @@ def run(no_wake: bool = False) -> None:
                 t_tts - t_heard,
             )
 
+            # ── Cooldown: let the speaker finish + clear mic buffer ────────────
+            # Without this, the mic picks up PPT's own voice and loops forever.
+            # 1.5s covers TTS tail + mic ring; adjust if still looping.
+            time.sleep(1.5)
+
         except KeyboardInterrupt:
             print(f"\n[{_timestamp()}] Goodbye.")
             break

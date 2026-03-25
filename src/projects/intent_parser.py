@@ -1,35 +1,83 @@
 """Parse natural language transcriptions into project management intents.
 
-Uses the LLM to classify and extract structured commands from speech.
+Uses fast keyword/regex matching first; falls back to LLM for ambiguous input.
 """
 from __future__ import annotations
 import json
 import logging
 import re
-from src.llm.ollama_client import complete
 
 log = logging.getLogger(__name__)
 
-_SYSTEM_PROMPT = """You are a project management intent parser for PPT (Personal Project Tracker).
+# ── Fast keyword/regex patterns (checked in order) ────────────────────────────
+_PATTERNS: list[tuple[str, str]] = [
+    (r'\b(create|new|start)\b.{0,10}\bproject\b.{0,5}\b(?:called|named|for)?\s+(.+)', 'create_project'),
+    (r'\badd\s+task\s+(.+?)\s+to\s+(.+)', 'add_task'),
+    (r'\b(?:complete|finish|mark)\s+(.+?)\s+(?:as\s+)?(?:done|complete|finished)\b', 'complete_task'),
+    (r'\b(list|show|what are my|view)\b.{0,10}\bprojects?\b', 'list_projects'),
+    (r'\b(list|show|view)\b.{0,10}\b(tasks?|todos?|to.dos?)\b', 'list_tasks'),
+    (r'\b(daily\s+summary|what.s on my plate|summary|standup)\b', 'daily_summary'),
+]
 
-Given a user's spoken command, extract the intent and entities as JSON.
 
-Valid intents:
-- create_project   → needs: name (required), goal (optional)
-- add_task         → needs: project_name (required), task_title (required), priority (optional: low/medium/high)
-- complete_task    → needs: task_title (required), project_name (optional)
-- list_projects    → no entities needed
-- list_tasks       → needs: project_name (optional)
-- daily_summary    → no entities needed
-- unknown          → when the command is not project-related
+def _keyword_parse(text: str) -> dict | None:
+    """Try to match text against known command patterns. Returns intent dict or None."""
+    t = text.lower().strip()
 
-Respond with ONLY valid JSON. Example:
-{"intent": "add_task", "project_name": "PPT", "task_title": "write tests", "priority": "high"}
-{"intent": "create_project", "name": "Website Redesign", "goal": "launch by April"}
-{"intent": "complete_task", "task_title": "write tests"}
-{"intent": "list_projects"}
-{"intent": "unknown"}
-"""
+    for pattern, intent in _PATTERNS:
+        m = re.search(pattern, t, re.IGNORECASE)
+        if not m:
+            continue
+
+        if intent == 'create_project':
+            name = m.group(2).strip().rstrip('.!?')
+            return {"intent": "create_project", "name": name}
+
+        if intent == 'add_task':
+            task = m.group(1).strip().rstrip('.!?')
+            project = m.group(2).strip().rstrip('.!?')
+            return {"intent": "add_task", "task_title": task, "project_name": project}
+
+        if intent == 'complete_task':
+            task = m.group(1).strip().rstrip('.!?')
+            return {"intent": "complete_task", "task_title": task}
+
+        if intent == 'list_projects':
+            return {"intent": "list_projects"}
+
+        if intent == 'list_tasks':
+            return {"intent": "list_tasks"}
+
+        if intent == 'daily_summary':
+            return {"intent": "daily_summary"}
+
+    return None
+
+
+_LLM_SYSTEM = (
+    "Extract a project management intent from the user's spoken command. "
+    "Reply with ONLY a JSON object — no other text. "
+    "Valid intents: create_project (needs name), add_task (needs project_name, task_title), "
+    "complete_task (needs task_title), list_projects, list_tasks, daily_summary, unknown. "
+    'Example: {"intent": "add_task", "project_name": "PPT", "task_title": "write tests"}'
+)
+
+
+def _llm_parse(text: str) -> dict:
+    """Fall back to LLM for ambiguous input."""
+    from src.llm.ollama_client import complete
+    prompt = f"{_LLM_SYSTEM}\n\nCommand: \"{text.strip()}\"\nJSON:"
+    try:
+        raw = complete(prompt)
+        match = re.search(r'\{.*\}', raw, re.DOTALL)
+        if match:
+            return json.loads(match.group())
+        log.warning("No JSON in LLM response: %s", raw[:200])
+    except json.JSONDecodeError as e:
+        log.error("JSON parse failed: %s", e)
+    except Exception as e:
+        log.error("LLM intent parse failed: %s", e)
+    return {"intent": "unknown"}
 
 
 def parse_intent(text: str) -> dict:
@@ -37,21 +85,13 @@ def parse_intent(text: str) -> dict:
     if not text.strip():
         return {"intent": "unknown"}
 
-    prompt = f"{_SYSTEM_PROMPT}\n\nUser said: \"{text.strip()}\"\n\nJSON:"
-    try:
-        raw = complete(prompt, temperature=0.1)
-        # Extract JSON from response (LLM might add extra text)
-        match = re.search(r'\{.*\}', raw, re.DOTALL)
-        if match:
-            return json.loads(match.group())
-        log.warning("No JSON found in LLM response: %s", raw)
-        return {"intent": "unknown"}
-    except json.JSONDecodeError as e:
-        log.error("JSON parse failed: %s — raw: %s", e, raw[:200])
-        return {"intent": "unknown"}
-    except Exception as e:
-        log.error("Intent parsing failed: %s", e)
-        return {"intent": "unknown"}
+    result = _keyword_parse(text)
+    if result is not None:
+        log.debug("Keyword match: %s", result)
+        return result
+
+    log.debug("No keyword match, falling back to LLM")
+    return _llm_parse(text)
 
 
 def dispatch(intent: dict) -> str | None:
