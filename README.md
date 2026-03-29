@@ -20,20 +20,35 @@ PPT is a personal AI voice assistant designed to run 24/7 on a dedicated home de
 
 ## Project Structure
 
+This is the **root monorepo**. Sub-applications graduate to their own repos as they grow — see [CONTRIBUTING.md](./CONTRIBUTING.md) for the graduation rules.
+
 ```
-PPT/
-├── README.md          ← You are here
-├── openspec.md        ← Full technical specification
-├── src/               ← Source code (Phase 1+)
-│   ├── wake/          ← Wake word detection
-│   ├── stt/           ← Speech-to-text
-│   ├── orchestrator/  ← Intent routing + LLM
-│   ├── tts/           ← Text-to-speech
-│   └── store/         ← Project/task data layer
-├── config/            ← Configuration files
-├── scripts/           ← Setup and utility scripts
-└── docs/              ← Additional documentation
+PPT/                        ← root monorepo
+├── src/
+│   ├── wake/               ← wake word detection       → will become: ppt-voice
+│   ├── stt/                ← speech-to-text            → will become: ppt-voice
+│   ├── tts/                ← text-to-speech            → will become: ppt-voice
+│   ├── llm/                ← LLM client (Ollama)       → will become: ppt-llm
+│   ├── orchestrator/       ← intent routing + pipeline ← stays in core
+│   ├── projects/           ← project/task data layer   → will become: ppt-store
+│   ├── integrations/       ← external API adapters
+│   └── web/                ← local web dashboard       → will become: ppt-board
+├── config/                 ← configuration files
+├── scripts/                ← setup and utility scripts
+├── tests/                  ← test suite (mirrors src/)
+└── docs/                   ← architecture docs and ADRs
 ```
+
+### Sub-App Repos
+
+| Repo | Contents | Status |
+|---|---|---|
+| [`ppt-voice`](https://github.com/kranthibasaraju/ppt-voice) | wake + stt + tts | 🟢 Graduated |
+| [`ppt-llm`](https://github.com/kranthibasaraju/ppt-llm) | Ollama client | 🟢 Graduated |
+| [`ppt-board`](https://github.com/kranthibasaraju/ppt-board) | web dashboard | 🟢 Graduated |
+| [`ppt-store`](https://github.com/kranthibasaraju/ppt-store) | project/task data layer | 🟢 Graduated |
+| [`ppt-integrations`](https://github.com/kranthibasaraju/ppt-integrations) | Telegram bot + commands | 🟢 Graduated |
+| `ppt-panels` | UI components | 🔵 Future |
 
 ---
 
@@ -65,6 +80,9 @@ Remaining open questions tracked in `openspec.md` Section 8.
 ## Quick Links
 
 - [Full Specification →](./openspec.md)
+- [File Organizing Rules & Repo Graduation →](./CONTRIBUTING.md)
+- [Task Tracker →](./TODO.md)
+- [Build Plan →](./PLAN.md)
 
 ---
 
