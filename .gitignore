@@ -4,7 +4,7 @@ __pycache__/
 *.pyo
 .DS_Store
 models/
-bin/
+bin/piper
 *.onnx
 *.wav
 *.mp3

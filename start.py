@@ -4,6 +4,9 @@ start.py — PPT launcher
 Usage:
     python start.py                  # show this menu
     python start.py setup            # run Phase 0 setup
+    python start.py board            # start web dashboard only (localhost:5000)
+    python start.py check            # quick health check — board + Ollama
+    python start.py ecosystem        # start everything: board → check → voice pipeline
     python start.py test wake        # test wake word detector
     python start.py test stt         # test speech-to-text
     python start.py test llm         # test Ollama LLM
@@ -16,6 +19,9 @@ Usage:
 import os
 import sys
 import subprocess
+import time
+import urllib.request
+import urllib.error
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -66,6 +72,15 @@ def _python() -> str:
 MENU = f"""
 {BOLD}PPT — Personal AI Voice Assistant{RESET}
 {CYAN}{'─' * 50}{RESET}
+
+  {BOLD}python start.py ecosystem{RESET}
+      Start everything: board → health check → voice
+
+  {BOLD}python start.py board{RESET}
+      Start web dashboard only  →  localhost:5000
+
+  {BOLD}python start.py check{RESET}
+      Quick health check (board + Ollama)
 
   {BOLD}python start.py setup{RESET}
       Install dependencies, download Piper TTS
@@ -141,6 +156,93 @@ def cmd_test_all() -> None:
             pass  # non-interactive (piped) — just continue
 
 
+def _ping(url: str, timeout: int = 3) -> bool:
+    """Return True if the URL responds with HTTP 200."""
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as r:
+            return r.status == 200
+    except Exception:
+        return False
+
+
+def cmd_board() -> None:
+    """Start the web dashboard in the foreground."""
+    print(f"\n{BOLD}Starting ppt-board at http://localhost:5000{RESET}\n")
+    _run([_python(), "src/web/app.py"])
+
+
+def cmd_check() -> None:
+    """Quick health check — board and Ollama."""
+    checks = [
+        ("ppt-board  ", "http://localhost:5000"),
+        ("Ollama     ", "http://localhost:11434"),
+    ]
+    print(f"\n{BOLD}PPT health check{RESET}")
+    print(f"{CYAN}{'─' * 36}{RESET}")
+    all_ok = True
+    for name, url in checks:
+        ok = _ping(url)
+        icon = f"{GREEN}✓{RESET}" if ok else f"{YELLOW}✗{RESET}"
+        status = "up" if ok else "down"
+        print(f"  {icon}  {name}  {status}  ({url})")
+        if not ok:
+            all_ok = False
+    print(f"{CYAN}{'─' * 36}{RESET}")
+    if all_ok:
+        print(f"  {GREEN}{BOLD}All services up.{RESET}\n")
+    else:
+        print(f"  {YELLOW}Some services are down — check above.{RESET}\n")
+    return all_ok
+
+
+def cmd_ecosystem(no_wake: bool = False) -> None:
+    """
+    Start the full PPT ecosystem:
+      1. Launch ppt-board in background
+      2. Wait for board to be ready
+      3. Run quick health check
+      4. Start the voice pipeline in foreground
+    """
+    print(f"\n{BOLD}{CYAN}PPT Ecosystem Starting…{RESET}")
+    print(f"{CYAN}{'─' * 50}{RESET}\n")
+
+    # ── Step 1: start ppt-board in background ─────────────────────────────────
+    board_already_up = _ping("http://localhost:5000")
+    if board_already_up:
+        print(f"  {GREEN}✓{RESET}  ppt-board already running at localhost:5000")
+        board_proc = None
+    else:
+        print(f"  →  Starting ppt-board…")
+        board_proc = subprocess.Popen(
+            [_python(), "src/web/app.py"],
+            cwd=str(PROJECT_ROOT),
+            stdout=open(PROJECT_ROOT / "logs" / "board.log", "a"),
+            stderr=subprocess.STDOUT,
+        )
+        # Wait up to 8 seconds for board to come up
+        for _ in range(16):
+            time.sleep(0.5)
+            if _ping("http://localhost:5000"):
+                print(f"  {GREEN}✓{RESET}  ppt-board ready at http://localhost:5000")
+                break
+        else:
+            print(f"  {YELLOW}⚠{RESET}  ppt-board slow to start — check logs/board.log")
+
+    # ── Step 2: health check ──────────────────────────────────────────────────
+    print()
+    cmd_check()
+
+    # ── Step 3: start voice pipeline in foreground ────────────────────────────
+    print(f"{BOLD}Starting voice pipeline…{RESET}\n")
+    try:
+        extra = ["--no-wake"] if no_wake else []
+        _run([_python(), "src/orchestrator/pipeline.py"] + extra)
+    finally:
+        # Clean up board process if we started it
+        if board_proc and board_proc.poll() is None:
+            board_proc.terminate()
+
+
 def cmd_run(no_wake: bool = False) -> None:
     extra = ["--no-wake"] if no_wake else []
     _run([_python(), "src/orchestrator/pipeline.py"] + extra)
@@ -156,7 +258,17 @@ def main() -> None:
 
     command = args[0].lower()
 
-    if command == "setup":
+    if command == "ecosystem":
+        no_wake = "--no-wake" in args
+        cmd_ecosystem(no_wake=no_wake)
+
+    elif command == "board":
+        cmd_board()
+
+    elif command == "check":
+        cmd_check()
+
+    elif command == "setup":
         cmd_setup()
 
     elif command == "test":

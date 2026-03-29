@@ -1,0 +1,12 @@
+#!/bin/bash
+# Launch ppt-board inside the project venv.
+# Used by launchd — keeps the plist simple and portable.
+
+PPT_ROOT="/Users/rdy/Documents/Projects/PPT"
+VENV_ACTIVATE="$PPT_ROOT/.venv/bin/activate"
+
+if [ -f "$VENV_ACTIVATE" ]; then
+    source "$VENV_ACTIVATE"
+fi
+
+exec python "$PPT_ROOT/src/web/app.py"
