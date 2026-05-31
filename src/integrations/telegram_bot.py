@@ -8,12 +8,12 @@ log = logging.getLogger(__name__)
 BASE_URL = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
 
-def send_message(text: str, chat_id: str = None) -> bool:
-    """Send a message to the configured Telegram chat."""
+def send_message_result(text: str, chat_id: str = None) -> dict:
+    """Send a message to Telegram and return delivery metadata."""
     cid = chat_id or TELEGRAM_CHAT_ID
     if not cid:
         log.warning("No TELEGRAM_CHAT_ID set — run scripts/setup_telegram.py first.")
-        return False
+        return {"ok": False, "message_id": None, "chat_id": None}
     try:
         r = requests.post(
             f"{BASE_URL}/sendMessage",
@@ -21,10 +21,23 @@ def send_message(text: str, chat_id: str = None) -> bool:
             timeout=10,
         )
         r.raise_for_status()
-        return True
+        try:
+            payload = r.json()
+        except Exception:
+            payload = {"ok": True, "result": {}}
+        return {
+            "ok": bool(payload.get("ok")),
+            "message_id": payload.get("result", {}).get("message_id"),
+            "chat_id": cid,
+        }
     except Exception as e:
         log.error("Telegram send_message failed: %s", e)
-        return False
+        return {"ok": False, "message_id": None, "chat_id": cid}
+
+
+def send_message(text: str, chat_id: str = None) -> bool:
+    """Send a message to the configured Telegram chat."""
+    return bool(send_message_result(text, chat_id=chat_id).get("ok"))
 
 
 def notify(event: str, detail: str = "") -> bool:
@@ -49,6 +62,18 @@ def notify(event: str, detail: str = "") -> bool:
     if detail:
         msg += f"\n{detail}"
     return send_message(msg)
+
+
+def send_typing(chat_id: str) -> None:
+    """Show 'typing…' indicator in the chat while Ollama is thinking."""
+    try:
+        requests.post(
+            f"{BASE_URL}/sendChatAction",
+            json={"chat_id": chat_id, "action": "typing"},
+            timeout=5,
+        )
+    except Exception:
+        pass  # Typing indicator is cosmetic — never block on it
 
 
 def get_updates(offset: int = None) -> list:

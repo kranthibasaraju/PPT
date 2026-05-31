@@ -42,6 +42,13 @@ def init_db() -> None:
             created     TEXT NOT NULL,
             updated     TEXT NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS conversation_history (
+            id       INTEGER PRIMARY KEY AUTOINCREMENT,
+            role     TEXT NOT NULL,   -- 'user' | 'assistant'
+            content  TEXT NOT NULL,
+            created  TEXT NOT NULL
+        );
         """)
     log.info("DB initialised at %s", _DB_PATH)
 
@@ -116,8 +123,12 @@ def list_tasks(project_id: int = None, status: str = None) -> list[dict]:
             query += " AND project_id=?"
             params.append(project_id)
         if status:
-            query += " AND status=?"
-            params.append(status)
+            if status == "open":
+                query += " AND status!=?"
+                params.append("done")
+            else:
+                query += " AND status=?"
+                params.append(status)
         query += " ORDER BY priority DESC, updated DESC"
         rows = con.execute(query, params).fetchall()
         return [dict(r) for r in rows]
@@ -127,6 +138,47 @@ def update_task_status(task_id: int, status: str) -> dict | None:
     now = datetime.utcnow().isoformat()
     with _conn() as con:
         con.execute("UPDATE tasks SET status=?, updated=? WHERE id=?", (status, now, task_id))
+    return get_task(task_id)
+
+
+def update_task(
+    task_id: int,
+    *,
+    title: str | None = None,
+    priority: str | None = None,
+    due_date: str | None = None,
+    notes: str | None = None,
+    status: str | None = None,
+) -> dict | None:
+    current = get_task(task_id)
+    if not current:
+        return None
+
+    now = datetime.utcnow().isoformat()
+    payload = {
+        "title": current["title"] if title is None else title.strip(),
+        "priority": current["priority"] if priority is None else priority,
+        "due_date": current["due_date"] if due_date is None else due_date,
+        "notes": current["notes"] if notes is None else notes.strip(),
+        "status": current["status"] if status is None else status,
+    }
+    with _conn() as con:
+        con.execute(
+            """
+            UPDATE tasks
+            SET title=?, priority=?, due_date=?, notes=?, status=?, updated=?
+            WHERE id=?
+            """,
+            (
+                payload["title"],
+                payload["priority"],
+                payload["due_date"],
+                payload["notes"],
+                payload["status"],
+                now,
+                task_id,
+            ),
+        )
     return get_task(task_id)
 
 
@@ -140,6 +192,49 @@ def find_task(title_fragment: str, project_id: int = None) -> dict | None:
         query += " ORDER BY updated DESC LIMIT 1"
         row = con.execute(query, params).fetchone()
         return dict(row) if row else None
+
+
+# ── Conversation history ──────────────────────────────────────────────────────
+
+def save_turn(role: str, content: str) -> None:
+    """Persist a single message (role='user'|'assistant') to the DB."""
+    now = datetime.utcnow().isoformat()
+    with _conn() as con:
+        con.execute(
+            "INSERT INTO conversation_history (role, content, created) VALUES (?,?,?)",
+            (role, content, now),
+        )
+
+
+def load_recent_turns(n: int = 10) -> list[dict]:
+    """
+    Return the last *n* messages from conversation history in chronological order.
+
+    A value of n=10 returns the 10 most recent messages (roughly 5 exchanges).
+    """
+    with _conn() as con:
+        rows = con.execute(
+            "SELECT role, content FROM conversation_history ORDER BY id DESC LIMIT ?",
+            (n,),
+        ).fetchall()
+    # Rows come back newest-first; reverse so history is chronological
+    return [{"role": r["role"], "content": r["content"]} for r in reversed(rows)]
+
+
+def trim_history(max_rows: int = 20) -> None:
+    """Delete the oldest rows so that at most max_rows messages are kept."""
+    with _conn() as con:
+        count = con.execute(
+            "SELECT COUNT(*) FROM conversation_history"
+        ).fetchone()[0]
+        if count > max_rows:
+            excess = count - max_rows
+            con.execute(
+                "DELETE FROM conversation_history WHERE id IN "
+                "(SELECT id FROM conversation_history ORDER BY id ASC LIMIT ?)",
+                (excess,),
+            )
+            log.debug("Trimmed %d old conversation message(s)", excess)
 
 
 # Initialise on import

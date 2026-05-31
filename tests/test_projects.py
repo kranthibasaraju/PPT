@@ -55,6 +55,24 @@ def test_add_and_list_tasks():
     assert "Write unit tests" in titles
 
 
+def test_task_notes_round_trip_and_update():
+    from src.projects.store import add_project, add_task, get_task, update_task
+
+    project = add_project("Stories")
+    task = add_task(
+        project["id"],
+        "SR-0 Board Story Notes Support",
+        priority="high",
+        notes="Store the story description in tasks.notes and show it on the card.",
+    )
+    assert "story description" in task["notes"].lower()
+
+    updated = update_task(task["id"], notes="Updated acceptance notes", priority="medium")
+    assert updated["notes"] == "Updated acceptance notes"
+    assert updated["priority"] == "medium"
+    assert get_task(task["id"])["notes"] == "Updated acceptance notes"
+
+
 def test_complete_task():
     from src.projects.store import add_project, add_task, update_task_status, get_task
     p = add_project("Test Project")
@@ -79,6 +97,21 @@ def test_get_project_by_name_partial():
     found = get_project_by_name("Website")
     assert found is not None
     assert "Website" in found["name"]
+
+
+def test_open_status_alias_excludes_done_tasks():
+    from src.projects.store import add_project, add_task, list_tasks, update_task_status
+
+    project = add_project("Aliases")
+    keep = add_task(project["id"], "Still open")
+    done = add_task(project["id"], "Already done")
+    update_task_status(done["id"], "done")
+
+    open_tasks = list_tasks(project_id=project["id"], status="open")
+    open_ids = {task["id"] for task in open_tasks}
+
+    assert keep["id"] in open_ids
+    assert done["id"] not in open_ids
 
 
 # ── Manager tests ─────────────────────────────────────────────────────────────
