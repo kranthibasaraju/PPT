@@ -1,0 +1,49 @@
+# docker-compose.yml — PPT root services
+#
+# WHY this file exists at the repo root:
+#   The deploy workflow does `docker compose -f docker-compose.yml up --build -d`
+#   from the repo root. This file is the single source of truth for what runs
+#   on the server. Add a new service here and the next deploy picks it up.
+#
+# HOW deploys work:
+#   --build         → rebuilds images only when Dockerfile or code changed (Docker layer cache)
+#   -d              → detached, runner doesn't block waiting for output
+#   --remove-orphans → removes containers for services you deleted from this file
+
+services:
+
+  ppt-notify:
+    build:
+      context: ./staging/ppt-notify
+      dockerfile: Dockerfile
+    container_name: ppt-notify
+    restart: unless-stopped
+    env_file:
+      # WHY env_file: keeps secrets out of this file and out of git
+      # Copy staging/ppt-notify/.env.example → staging/ppt-notify/.env on the server
+      - ./staging/ppt-notify/.env
+    volumes:
+      # Persist SQLite DB across deploys — without this, every deploy wipes your data
+      - ppt-notify-data:/app/data
+    labels:
+      - "ppt.service=notify"
+
+  # ppt-voice — uncomment when it has a Dockerfile
+  # ppt-voice:
+  #   build:
+  #     context: ./staging/ppt-voice
+  #     dockerfile: Dockerfile
+  #   container_name: ppt-voice
+  #   restart: unless-stopped
+  #   env_file:
+  #     - ./staging/ppt-voice/.env
+  #   # audio device passthrough (needed for mic/speaker on the server)
+  #   devices:
+  #     - /dev/snd:/dev/snd
+  #   labels:
+  #     - "ppt.service=voice"
+
+volumes:
+  ppt-notify-data:
+    name: ppt-notify-data
+    # external: true  ← uncomment after first deploy to protect data from accidental pruning

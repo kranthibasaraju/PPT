@@ -1,0 +1,80 @@
+name: Deploy to Home Server
+
+# HOW IT WORKS (self-hosted runner, no port forwarding):
+#   1. Push to main → GitHub triggers this workflow
+#   2. Job is sent to your Debian server via the runner's outbound websocket
+#   3. Runner pulls code, restarts services — all happening locally on the server
+#
+# WHY separate from CI:
+#   CI runs on every push/PR — fast, no side effects.
+#   Deploy only runs when CI passes on main — it has real-world consequences.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:  # manual trigger from GitHub UI
+
+jobs:
+  deploy:
+    # WHY self-hosted label: job runs on YOUR server, not GitHub's cloud.
+    # The runner connects outbound to GitHub — you open zero inbound ports.
+    runs-on: [self-hosted, ppt-server]
+
+    # Only deploy if CI passed (skip on CI failure)
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Write .env from GitHub secrets
+        # WHY: secrets never touch git. The runner writes the .env file fresh on
+        # every deploy from GitHub Secrets — the server never needs manual edits.
+        run: |
+          cat > staging/ppt-notify/.env <<EOF
+          TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }}
+          EOF
+
+      - name: Install/update Python deps
+        # WHY venv: isolates deps from system Python, same as your local setup
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -r requirements.txt -q
+
+      - name: Build and restart services
+        # WHY build on server (no registry):
+        #   The runner IS the server — building locally means no image push/pull,
+        #   no registry costs, and Docker's layer cache keeps rebuilds fast.
+        #   Only move to a registry (ghcr.io) if you ever deploy to multiple servers.
+        run: |
+          docker compose -f docker-compose.yml up --build -d --remove-orphans
+
+      - name: Verify services healthy
+        run: |
+          sleep 10
+          docker compose -f docker-compose.yml ps
+          if docker compose -f docker-compose.yml ps --status exited | grep -q "exited"; then
+            echo "❌ A service exited after deploy"
+            docker compose -f docker-compose.yml logs --tail=50
+            exit 1
+          fi
+          echo "✅ All services running"
+
+      - name: Notify Telegram on success
+        if: success()
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d text="✅ PPT deployed — $(git log -1 --pretty='%s') ($(git rev-parse --short HEAD))"
+
+      - name: Notify Telegram on failure
+        if: failure()
+        run: |
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            -d chat_id="${{ secrets.TELEGRAM_CHAT_ID }}" \
+            -d text="❌ PPT deploy FAILED — check Actions tab for details"
