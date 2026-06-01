@@ -12,3 +12,17 @@ bin/piper
 *.log
 .pytest_cache/
 .claude/
+# Secrets — never commit real tokens
+config/settings.py
+config/google_oauth_client_secret.json
+data/google_calendar_token.json
+
+# Databases
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
+# Logs & PIDs
+logs/
+pids/
+.claude/

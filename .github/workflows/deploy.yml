@@ -27,9 +27,9 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
         with:
-          submodules: recursive
+          submodules: false
 
       - name: Write .env from GitHub secrets
         # WHY mkdir -p: staging/ppt-notify/ may not exist on a fresh clone
