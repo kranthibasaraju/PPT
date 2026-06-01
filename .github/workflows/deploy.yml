@@ -32,10 +32,12 @@ jobs:
           submodules: recursive
 
       - name: Write .env from GitHub secrets
-        # WHY: secrets never touch git. The runner writes the .env file fresh on
-        # every deploy from GitHub Secrets — the server never needs manual edits.
+        # WHY mkdir -p: staging/ppt-notify/ may not exist on a fresh clone
+        # (the dir is gitignored or empty). We create it and write .env fresh
+        # from GitHub Secrets on every deploy — server never needs manual edits.
         run: |
-          cat > staging/ppt-notify/.env <<EOF
+          mkdir -p staging/ppt-notify
+          cat > staging/ppt-notify/.env << EOF
           TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }}
           EOF

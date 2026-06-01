@@ -16,7 +16,7 @@ set -euo pipefail
 
 REPO_URL="${1:?Usage: $0 <repo-url> <token>}"
 TOKEN="${2:?Usage: $0 <repo-url> <token>}"
-RUNNER_VERSION="2.317.0"
+RUNNER_VERSION="2.334.0"
 RUNNER_USER="github-runner"
 RUNNER_DIR="/opt/actions-runner"
 
