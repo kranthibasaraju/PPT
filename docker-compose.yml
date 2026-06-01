@@ -19,14 +19,34 @@ services:
     container_name: ppt-notify
     restart: unless-stopped
     env_file:
-      # WHY env_file: keeps secrets out of this file and out of git
-      # Copy staging/ppt-notify/.env.example → staging/ppt-notify/.env on the server
       - ./staging/ppt-notify/.env
     volumes:
-      # Persist SQLite DB across deploys — without this, every deploy wipes your data
-      - ppt-notify-data:/app/data
+      # WHY shared volume: ppt-notify writes to notify.db + journal.db
+      # ppt-board reads the same DBs — they must share the same data directory
+      - ppt-data:/app/data
     labels:
       - "ppt.service=notify"
+
+  ppt-board:
+    build:
+      context: .
+      dockerfile: Dockerfile.board
+    container_name: ppt-board
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    env_file:
+      - ./staging/ppt-notify/.env   # shares same secrets (Telegram, secret key)
+    environment:
+      - PPT_SECRET_KEY=${PPT_SECRET_KEY:-ppt-change-me}
+    volumes:
+      # WHY same volume as ppt-notify: board reads notify.db, projects.db, journal.db
+      # Both containers see /app/data — one writes, one reads, SQLite WAL handles concurrency
+      - ppt-data:/app/data
+    depends_on:
+      - ppt-notify
+    labels:
+      - "ppt.service=board"
 
   # ppt-voice — uncomment when it has a Dockerfile
   # ppt-voice:
@@ -37,13 +57,13 @@ services:
   #   restart: unless-stopped
   #   env_file:
   #     - ./staging/ppt-voice/.env
-  #   # audio device passthrough (needed for mic/speaker on the server)
   #   devices:
   #     - /dev/snd:/dev/snd
   #   labels:
   #     - "ppt.service=voice"
 
 volumes:
-  ppt-notify-data:
-    name: ppt-notify-data
-    # external: true  ← uncomment after first deploy to protect data from accidental pruning
+  ppt-data:
+    name: ppt-data
+    # WHY renamed from ppt-notify-data: both services share this volume now
+    # external: true  ← uncomment after first deploy to protect from accidental pruning

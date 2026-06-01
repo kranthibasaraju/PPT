@@ -1,0 +1,22 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# WHY copy requirements first: Docker caches this layer.
+# If only app code changes, pip install is skipped — faster rebuilds.
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the full repo (board reads from src/, config/, data/)
+COPY . .
+
+# Data dir for SQLite DBs (mounted as a volume in docker-compose)
+RUN mkdir -p /app/data /app/logs
+
+ENV PPT_SECRET_KEY=""
+ENV TELEGRAM_BOT_TOKEN=""
+ENV TELEGRAM_CHAT_ID=""
+
+EXPOSE 5001
+
+CMD ["python", "src/web/app.py"]

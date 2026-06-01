@@ -185,9 +185,13 @@ Automated deploys from GitHub to Debian — no port forwarding, no SSH keys in C
 | Add GitHub Secrets: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | ✅ Done 2026-05-31 | Repo → Settings → Secrets → Actions |
 | Install Docker on Debian | 🔲 Todo | `curl -fsSL https://get.docker.com \| sh` |
 | Add `debian` user to `docker` group | 🔲 Todo | `sudo usermod -aG docker debian && newgrp docker` |
-| Register runner: `bash ~/PPT/scripts/setup-runner.sh <repo-url> <token>` | 🔲 Todo | Token from GitHub → Settings → Actions → Runners (expires 1h) |
-| Verify runner Online in GitHub → Actions → Runners | 🔲 Todo | |
-| Trigger first deploy via `workflow_dispatch` | 🔲 Todo | Writes `.env` from secrets, builds image, starts ppt-notify |
+| Register runner: `bash ~/PPT/scripts/setup-runner.sh <repo-url> <token>` | ✅ Done 2026-05-31 | Runner registered as systemd service, user: `debian` |
+| Verify runner Online in GitHub → Actions → Runners | ✅ Done 2026-05-31 | Runner listening for jobs ✓ |
+| Trigger first deploy via `workflow_dispatch` | ✅ Done 2026-05-31 | ppt-notify container running |
+| Add ppt-board to docker-compose + Dockerfile.board | ✅ Done 2026-05-31 | Port 5001, shares `ppt-data` volume with ppt-notify |
+| Add `PPT_SECRET_KEY` to GitHub Secrets | 🔲 Todo | Repo → Settings → Secrets → Actions |
+| Push and verify ppt-board container starts | 🔲 Todo | Access at `http://10.0.0.50:5001/board` |
+| Confirm network access: local only vs public | 🔲 Todo | Run `curl -s https://ipinfo.io/ip && ip route \| grep default` on server |
 | Rotate Telegram bot token (was briefly in public repo) | 🔲 Todo | BotFather → /mybots → Revoke → update Secret + local settings.py |
 
 **Key files:**
@@ -252,7 +256,7 @@ Story 1 (done) → Story 2 (harden) → Story 3 (Docker) → Story 4 (services)
 | 2026-05-30 | Started Debian install attempt on old Windows PC |
 | 2026-05-31 | Story 1 complete — Debian up, static IP `10.0.0.50`, SSH confirmed from Mac |
 | 2026-05-31 | Story 2 in progress — root login disabled, SSH keys set up, UFW active, packages updated. Fail2ban remaining. |
-| 2026-05-31 | Story 8 started — repo cloned to Debian, GitHub Secrets added. Runner registration next. Runner runs as `debian` user (not dedicated github-runner user). |
+| 2026-05-31 | Story 8 in progress — repo cloned, secrets added, runner registered and listening for jobs. Next: Docker install + first deploy trigger. |
 
 ---
 

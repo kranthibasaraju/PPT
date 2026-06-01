@@ -40,6 +40,7 @@ jobs:
           cat > staging/ppt-notify/.env << EOF
           TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }}
+          PPT_SECRET_KEY=${{ secrets.PPT_SECRET_KEY }}
           EOF
 
       - name: Build and restart services
